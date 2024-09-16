@@ -1,0 +1,242 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <time.h>
+
+// Enum para os tipos de investimento
+typedef enum {
+    PREFIXADO,
+    IPCA,
+    SELIC,
+    CDI
+} TipoInvestimento;
+
+// Estrutura de Data
+typedef struct {
+    int day;
+    int month;
+    int year;
+} Data;
+
+// Estrutura de Investimento
+typedef struct {
+    Data dataAplicacao;
+    float valorAplicado;
+    float valorBruto;
+    float imposto;
+    float taxaJuros;
+    TipoInvestimento tipo;
+    char nome[50];
+} Investimento;
+
+// Estrutura de Titular
+typedef struct {
+    char nomeTitular[50];
+    Investimento* investimentos;
+    int qtdInvestimentos;
+} Titular;
+
+// Variável global para a data atual
+Data dataAtual;
+
+// Função para calcular o número de dias entre duas datas
+int calcularDias(Data inicio, Data fim) {
+    struct tm a = {0,0,0,inicio.day,inicio.month-1,inicio.year-1900};
+    struct tm b = {0,0,0,fim.day,fim.month-1,fim.year-1900};
+    time_t x = mktime(&a);
+    time_t y = mktime(&b);
+    double difference = difftime(y, x) / (60 * 60 * 24);
+    return (int)difference;
+}
+
+// Função para atualizar o investimento com base na taxa de juros e tempo
+void atualizarInvestimento(Investimento* inv) {
+    int dias = calcularDias(inv->dataAplicacao, dataAtual);
+    float taxaDiaria = pow(1 + inv->taxaJuros / 100, 1.0 / 365) - 1;
+    inv->valorBruto = inv->valorAplicado * pow(1 + taxaDiaria, dias);
+    inv->imposto = inv->valorBruto * 0.15;  // Exemplo de cálculo de imposto
+}
+
+// Função para imprimir o valor bruto total de um titular
+void imprimirValorBrutoTotal(Titular* titular) {
+    float totalBruto = 0.0;
+    for (int i = 0; i < titular->qtdInvestimentos; i++) {
+        totalBruto += titular->investimentos[i].valorBruto;
+    }
+    printf("Valor Bruto Total de %s: R$ %.2f\n", titular->nomeTitular, totalBruto);
+}
+
+// Função para imprimir o valor líquido total de um titular
+void imprimirValorLiquidoTotal(Titular* titular) {
+    float totalLiquido = 0.0;
+    for (int i = 0; i < titular->qtdInvestimentos; i++) {
+        totalLiquido += titular->investimentos[i].valorBruto - titular->investimentos[i].imposto;
+    }
+    printf("Valor Líquido Total de %s: R$ %.2f\n", titular->nomeTitular, totalLiquido);
+}
+
+// Função para criar um investimento
+Investimento criarInvestimento() {
+    Investimento inv;
+    
+    printf("\n--- Criar Novo Investimento ---\n");
+
+    printf("Dia da aplicação: ");
+    scanf("%d", &inv.dataAplicacao.day);
+    printf("Mês da aplicação: ");
+    scanf("%d", &inv.dataAplicacao.month);
+    printf("Ano da aplicação: ");
+    scanf("%d", &inv.dataAplicacao.year);
+
+    printf("Valor aplicado (R$): ");
+    scanf("%f", &inv.valorAplicado);
+
+    printf("Tipo de investimento (0: Prefixado, 1: IPCA+, 2: Selic, 3: CDI): ");
+    int tipo;
+    scanf("%d", &tipo);
+    inv.tipo = (TipoInvestimento)tipo;
+
+    printf("Nome do investimento: ");
+    scanf(" %[^\n]", inv.nome);
+
+    printf("Taxa de juros anual (%%): ");
+    scanf("%f", &inv.taxaJuros);
+
+    atualizarInvestimento(&inv);
+
+    printf("Investimento '%s' criado com sucesso!\n", inv.nome);
+    return inv;
+}
+
+// Função para editar um investimento
+void editarInvestimento(Investimento* inv) {
+    printf("\n--- Editar Investimento - %s ---\n", inv->nome);
+
+    printf("Novo valor aplicado (R$): ");
+    scanf("%f", &inv->valorAplicado);
+
+    printf("Nova taxa de juros anual (%%): ");
+    scanf("%f", &inv->taxaJuros);
+
+    atualizarInvestimento(inv);
+    printf("Investimento atualizado com sucesso!\n");
+}
+
+// Função para deletar um investimento
+void deletarInvestimento(Titular* titular, int indice) {
+    if (indice < 0 || indice >= titular->qtdInvestimentos) {
+        printf("Índice inválido!\n");
+        return;
+    }
+
+    for (int i = indice; i < titular->qtdInvestimentos - 1; i++) {
+        titular->investimentos[i] = titular->investimentos[i + 1];
+    }
+
+    titular->qtdInvestimentos--;
+    titular->investimentos = (Investimento*) realloc(titular->investimentos, titular->qtdInvestimentos * sizeof(Investimento));
+    printf("Investimento deletado com sucesso!\n");
+}
+
+// Função para visualizar todos os investimentos
+void verInvestimentos(Titular* titular) {
+    printf("\n--- Investimentos de %s ---\n", titular->nomeTitular);
+    for (int i = 0; i < titular->qtdInvestimentos; i++) {
+        printf("Investimento %d - Nome: %s\n", i + 1, titular->investimentos[i].nome);
+        printf("  Valor Bruto: R$ %.2f, Valor Aplicado: R$ %.2f\n", titular->investimentos[i].valorBruto, titular->investimentos[i].valorAplicado);
+    }
+}
+
+// Função para criar um titular e seus investimentos
+Titular criarTitular() {
+    Titular titular;
+
+    printf("Nome do titular: ");
+    scanf(" %[^\n]", titular.nomeTitular);
+
+    printf("Quantidade de investimentos: ");
+    scanf("%d", &titular.qtdInvestimentos);
+
+    titular.investimentos = (Investimento*) malloc(titular.qtdInvestimentos * sizeof(Investimento));
+
+    for (int i = 0; i < titular.qtdInvestimentos; i++) {
+        printf("\nInvestimento %d:\n", i + 1);
+        titular.investimentos[i] = criarInvestimento();
+    }
+
+    return titular;
+}
+
+// Menu para gerenciar investimentos
+void menu(Titular* titular) {
+    int opcao;
+    do {
+        printf("\n----- MENU -----\n");
+        printf("1. Adicionar investimento\n");
+        printf("2. Ver investimentos\n");
+        printf("3. Editar investimento\n");
+        printf("4. Deletar investimento\n");
+        printf("5. Ver total bruto e líquido\n");
+        printf("6. Sair\n");
+        printf("Escolha uma opção: ");
+        scanf("%d", &opcao);
+
+        switch (opcao) {
+            case 1: {
+                titular->qtdInvestimentos++;
+                titular->investimentos = (Investimento*) realloc(titular->investimentos, titular->qtdInvestimentos * sizeof(Investimento));
+                titular->investimentos[titular->qtdInvestimentos - 1] = criarInvestimento();
+                break;
+            }
+            case 2:
+                verInvestimentos(titular);
+                break;
+            case 3: {
+                int indice;
+                printf("Escolha o índice do investimento para editar: ");
+                scanf("%d", &indice);
+                if (indice > 0 && indice <= titular->qtdInvestimentos) {
+                    editarInvestimento(&titular->investimentos[indice - 1]);
+                } else {
+                    printf("Índice inválido!\n");
+                }
+                break;
+            }
+            case 4: {
+                int indice;
+                printf("Escolha o índice do investimento para deletar: ");
+                scanf("%d", &indice);
+                deletarInvestimento(titular, indice - 1);
+                break;
+            }
+            case 5:
+                imprimirValorBrutoTotal(titular);
+                imprimirValorLiquidoTotal(titular);
+                break;
+            case 6:
+                printf("Saindo...\n");
+                break;
+            default:
+                printf("Opção inválida! Tente novamente.\n");
+        }
+    } while (opcao != 6);
+}
+
+// Função principal
+int main() {
+    // Definindo a data atual
+    dataAtual.day = 6;
+    dataAtual.month = 9;
+    dataAtual.year = 2024;
+
+    Titular titular = criarTitular();
+
+    // Chama o menu para gerenciar o titular
+    menu(&titular);
+
+    // Liberando memória
+    free(titular.investimentos);
+
+    return 0;
+}
